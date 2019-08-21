@@ -1,0 +1,17 @@
+create Procedure [dbo].[TargetEmailDomains]
+( 
+@fromDate DateTime,
+@todate DateTime
+)
+As
+Begin
+SELECT
+Distinct SUBSTRING(RecieverEmail, 
+CHARINDEX('@', RecieverEmail)+1, CHARINDEX('.', RecieverEmail)-CHARINDEX('@', RecieverEmail)-1)
+AS Domain
+from Email  where DeliveryDate>=@fromDate  and DeliveryDate<=@toDate
+end;
+GO
+
+--Important
+--CHARINDEX('@', RecieverEmail)+1, CHARINDEX('.', RecieverEmail)-CHARINDEX('@', RecieverEmail)-1)
