@@ -1,0 +1,52 @@
+CREATE VIEW [dbo].[EmailAnalytics]
+AS
+SELECT Campaignid, 
+       CampaignName, 
+       CampaignActivityId, 
+       CampaignActivityName, 
+       RecipientEmail, 
+       TriggerId, 
+       TargetId, 
+       TriggerType, 
+       TargetType, 
+       ProductId, 
+       ProductGroup, 
+       pv.EmailId, 
+       pv.CreatedOn, 
+       pv.DeliveredOn, 
+       opencount as TotalOpen, 
+       Iif([open] IS NULL, 0, 1)  AS [Open],         
+       COALESCE (unsubclicked, 0) AS TotalUnsubClicked,
+       COALESCE (uniqueunsubclicked, 0) AS UniqueUnsubClicked,
+       COALESCE (clicked, 0) AS TotalClick,
+       COALESCE (uniqueclicked, 0) AS Click,
+       COALESCE (dropped, 0)      AS Dropped, 
+       COALESCE (delivered, 0)    AS Delivered, 
+       COALESCE (deferred, 0)     AS Deferred, 
+       COALESCE (hardbounce, 0)   AS HardBounce, 
+       COALESCE (spamreport, 0)   AS SpamReport, 
+       COALESCE (softbounce, 0)   AS SoftBounce 
+FROM   (SELECT DISTINCT e.id AS Emailid, e.createdon, e.deliveredon, e.opencount, 
+                        e.clickcount, eet.[Name] AS EventName, Count(ee.id) AS [Count] 
+        FROM   emails e 
+               LEFT JOIN emailevents ee 
+                      ON ee.emailid = e.id AND ee.eventtype NOT IN ( 8, 9, 10, 0 )
+               LEFT JOIN emaileventtypes eet 
+                      ON ee.eventtype = eet.id 
+        GROUP  BY e.id, e.clickcount, e.opencount, e.createdon, e.deliveredon, eet.[Name]
+       ) t1 
+       PIVOT (Sum([count]) 
+             FOR [eventname] IN (dropped, delivered, deferred, hardbounce, [Open], spamreport, softbounce)) AS pv 
+       INNER JOIN emailmetas m 
+               ON m.emailid = pv.emailid 
+       LEFT JOIN (SELECT emailid, 1 as uniqueunsubclicked, Count(1) AS unsubclicked 
+                  FROM   emailevents 
+                  WHERE  eventtype = 6 AND Charindex('www.grapecity.com/en/users/user-mailing-opt-out/user', [eventdata]) > 0 
+                  GROUP  BY emailid) ee2 				  
+              ON ee2.emailid = pv.emailid 
+       LEFT JOIN (SELECT emailid, 1 as uniqueclicked, Count(1) AS clicked 
+                  FROM   emailevents 
+                  WHERE  eventtype = 6 AND Charindex('www.grapecity.com/en/users/user-mailing-opt-out/user', [eventdata]) = 0 
+                  GROUP  BY emailid) ee3
+              ON ee3.emailid = pv.emailid 
+GO
